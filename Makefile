@@ -1,11 +1,7 @@
 NAME = $(shell awk -F\" '/^const Name/ { print $$2 }' ./pacproxy.go)
 VERSION = $(shell awk -F\" '/^const Version/ { print $$2 }' ./pacproxy.go)
 
-all: deps build
-
-deps:
-	go get -u github.com/tools/godep
-	godep restore
+all: build
 
 build:
 	@mkdir -p bin/
@@ -31,4 +27,4 @@ clean:
 	@rm -rf bin/
 	@rm -rf build/
 
-.PHONY: all deps build test xcompile package clean
+.PHONY: all build test xcompile package clean

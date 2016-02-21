@@ -1,0 +1,44 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d",
+			"revisionTime": "2015-11-05T15:09:06-06:00"
+		},
+		{
+			"path": "github.com/elazarl/go-bindata-assetfs",
+			"revision": "57eb5e1fc594ad4b0b1dbea7b286d299e0cb43c2",
+			"revisionTime": "2015-12-24T06:54:52+02:00"
+		},
+		{
+			"path": "github.com/julienschmidt/httprouter",
+			"revision": "77366a47451a56bb3ba682481eed85b64fea14e8",
+			"revisionTime": "2016-02-19T16:40:26+01:00"
+		},
+		{
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"revisionTime": "2016-01-10T11:55:54+01:00"
+		},
+		{
+			"path": "github.com/robertkrimen/otto",
+			"revision": "53221230c215611a90762720c9042ac782ef74ee",
+			"revisionTime": "2016-02-19T09:43:13+11:00",
+			"tree": true
+		},
+		{
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "1f4a1643a57e798696635ea4c126e9127adb7d3c",
+			"revisionTime": "2016-02-21T10:44:43Z",
+			"tree": true
+		},
+		{
+			"path": "github.com/stretchr/testify/require",
+			"revision": "1f4a1643a57e798696635ea4c126e9127adb7d3c",
+			"revisionTime": "2016-02-21T10:44:43Z",
+			"tree": true
+		}
+	]
+}
