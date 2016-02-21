@@ -16,7 +16,7 @@ func initSignalNotify(pac *Pac) {
 		for s := range sigChan {
 			switch s {
 			case syscall.SIGHUP:
-				f := pac.PacFilename()
+				f := pac.PacURI()
 				if f == "" {
 					log.Println("Cleaning connection statuses however the current PAC configuration was not loaded from a file.")
 					pac.ConnService.Clear()

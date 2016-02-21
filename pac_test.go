@@ -14,13 +14,13 @@ import (
 func TestPacLoad(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.NoError(t, p.Load(MustAsset("default.pac")))
+	require.NoError(t, p.LoadString(MustAsset("default.pac")))
 }
 
 func TestPacLoadStringReturnErrorWhenGivenInvalidJavascript(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.Error(t, p.Load(string(MustAsset("default.pac"))+"={;}"))
+	require.Error(t, p.LoadString(string(MustAsset("default.pac"))+"={;}"))
 }
 
 func TestPacCallFindProxyForURLRevertsToDefaultWhenNothingHasBeenLoaded(t *testing.T) {
@@ -34,7 +34,7 @@ func TestPacCallFindProxyForURLRevertsToDefaultWhenNothingHasBeenLoaded(t *testi
 func TestPacCallFindProxyForURLWithLoadedPacAndThenUnloadAndTryAgain(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.NoError(t, p.Load(`
+	require.NoError(t, p.LoadString(`
 function FindProxyForURL(url, host)
 {
 	return "PROXY example.com";
@@ -67,7 +67,7 @@ func TestPacProxyReturnsNilURLAndNoErrorForDirectResult(t *testing.T) {
 func TestPacProxyReturnsNilURLAndErrorForProxyResultWhenConnectionFails(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.NoError(t, p.Load(`
+	require.NoError(t, p.LoadString(`
 function FindProxyForURL(url, host)
 {
 	return "PROXY 127.0.0.1:9";
@@ -84,7 +84,7 @@ function FindProxyForURL(url, host)
 func TestPacProxyReturnsNilURLAndNilErrorForProxyResultWhenConnectionFailsButWeHaveDirectFallback(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.NoError(t, p.Load(`
+	require.NoError(t, p.LoadString(`
 function FindProxyForURL(url, host)
 {
 	return "PROXY 127.0.0.1:9; DIRECT";
@@ -108,17 +108,17 @@ func TestPacPacConfiguration(t *testing.T) {
 func TestPacPacFilename(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.Equal(t, "", p.PacFilename())
+	require.Equal(t, "", p.PacURI())
 	e = p.LoadFile("./resource/test/example.pac")
 	require.NoError(t, e)
 	f, _ := filepath.Abs("./resource/test/example.pac")
-	require.Equal(t, f, p.PacFilename())
+	require.Equal(t, fmt.Sprintf("file://%s", f), p.PacURI())
 }
 
 func TestPacCallFindProxyForURLFromGoRoutineDoesNotHaveRaceIssues(t *testing.T) {
 	p, e := NewPac()
 	require.NoError(t, e)
-	require.NoError(t, p.Load(`
+	require.NoError(t, p.LoadString(`
 function FindProxyForURL(url, host)
 {
 	return "PROXY " + host;

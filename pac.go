@@ -47,7 +47,7 @@ func init() {
 type Pac struct {
 	mutex       *sync.RWMutex
 	runtime     *gopacRuntime
-	pacFile     string
+	pacURI      string
 	pacSrc      []byte
 	ConnService *PacConnService
 }
@@ -67,30 +67,37 @@ func NewPac() (*Pac, error) {
 // Unload any previously loaded pac configuration and reverts to default.
 func (p *Pac) Unload() error {
 	log.Print("Unloading pac")
-	return p.Load(MustAsset("default.pac"))
+	return p.LoadString(MustAsset("default.pac"))
 }
 
-// Load attempts to load a pac from a string, a byte slice,
+// LoadFrom attempts to load a pac from a string, a byte slice,
 // a bytes.Buffer, or an io.Reader, but it MUST always be in UTF-8.
-func (p *Pac) Load(js interface{}) error {
+// Allows specifying an extra identifier for logging to state where
+// the pac was sourced from.
+func (p *Pac) LoadFrom(js interface{}, uri string, from string) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	p.pacFile = ""
-	log.Print("Loading pac from string")
+	p.pacURI = uri
+	log.Printf("Loading pac from %s", from)
 	return p.initPacRuntime(js)
+}
+
+// LoadString attempts to load a pac from a string, a byte slice,
+// a bytes.Buffer, or an io.Reader, but it MUST always be in UTF-8.
+func (p *Pac) LoadString(js interface{}) error {
+	return p.LoadFrom(js, "", "string")
 }
 
 // LoadFile attempt to load a pac file.
 func (p *Pac) LoadFile(file string) error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	f, err := os.Open(file)
 	if err != nil {
 		return err
 	}
-	p.pacFile, _ = filepath.Abs(f.Name())
-	log.Printf("Loading pac from file %s", p.pacFile)
-	return p.initPacRuntime(f)
+	defer f.Close()
+	absFile, _ := filepath.Abs(f.Name())
+	uri := fmt.Sprintf("file://%s", absFile)
+	return p.LoadFrom(f, uri, fmt.Sprintf("file %s", absFile))
 }
 
 func (p *Pac) initPacRuntime(js interface{}) error {
@@ -163,12 +170,12 @@ func (p *Pac) initPacRuntime(js interface{}) error {
 	return nil
 }
 
-// PacFilename returns the path of the corrently loaded pac configuration.
-// Returns an empty string is the pac configuration was not loaded from a file.
-func (p *Pac) PacFilename() string {
+// PacURI returns the URI of the currently loaded pac configuration.
+// Returns an empty string is the pac configuration was not loaded from a URI.
+func (p *Pac) PacURI() string {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
-	return p.pacFile
+	return p.pacURI
 }
 
 // PacConfiguration will return the current pac configuration

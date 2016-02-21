@@ -41,7 +41,7 @@ func NewNonProxyHTTPHandler(pac *Pac) http.Handler {
 		}{
 			Name:         Name,
 			Version:      Version,
-			PacFilename:  pac.PacFilename(),
+			PacFilename:  pac.PacURI(),
 			KnownProxies: pac.ConnService.KnownProxies(),
 		}
 		HTMLTemplate.ExecuteTemplate(w, "home", d)
