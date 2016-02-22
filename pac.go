@@ -75,11 +75,16 @@ func (p *Pac) Unload() error {
 // Allows specifying an extra identifier for logging to state where
 // the pac was sourced from.
 func (p *Pac) LoadFrom(js interface{}, uri string, from string) error {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	p.pacURI = uri
 	log.Printf("Loading pac from %s", from)
-	return p.initPacRuntime(js)
+	err := p.initPacRuntime(js, uri)
+	if err == nil {
+		log.Print("PAC runtime successfully initialised")
+		log.Print("Old PAC runtime has been replaced")
+	} else {
+		log.Print("PAC runtime initialisation failed. Reason: %s", err)
+		log.Print("Existing PAC runtime has not been replaced")
+	}
+	return err
 }
 
 // LoadString attempts to load a pac from a string, a byte slice,
@@ -100,10 +105,10 @@ func (p *Pac) LoadFile(file string) error {
 	return p.LoadFrom(f, uri, fmt.Sprintf("file %s", absFile))
 }
 
-func (p *Pac) initPacRuntime(js interface{}) error {
+func (p *Pac) initPacRuntime(js interface{}, uri string) error {
 	var err error
-	p.ConnService.Clear()
-	p.runtime, err = newGopacRuntime()
+	var runtime *gopacRuntime
+	runtime, err = newGopacRuntime()
 	if err != nil {
 		return err
 	}
@@ -114,11 +119,11 @@ func (p *Pac) initPacRuntime(js interface{}) error {
 		}
 		return strings.Join(output, " ")
 	}
-	p.runtime.vm.Set("alert", func(call otto.FunctionCall) otto.Value {
+	runtime.vm.Set("alert", func(call otto.FunctionCall) otto.Value {
 		log.Println("alert:", formatForConsole(call.ArgumentList))
 		return otto.UndefinedValue()
 	})
-	p.runtime.vm.Set("console", map[string]interface{}{
+	runtime.vm.Set("console", map[string]interface{}{
 		"assert": func(call otto.FunctionCall) otto.Value {
 			if b, _ := call.Argument(0).ToBoolean(); !b {
 				log.Println("console.assert:", formatForConsole(call.ArgumentList[1:]))
@@ -150,23 +155,30 @@ func (p *Pac) initPacRuntime(js interface{}) error {
 			return otto.UndefinedValue()
 		},
 	})
+	var pacSrc []byte
 	switch js := js.(type) {
 	case string:
-		p.pacSrc = []byte(js)
+		pacSrc = []byte(js)
 	case []byte:
-		p.pacSrc = js
+		pacSrc = js
 	case *bytes.Buffer:
-		p.pacSrc = js.Bytes()
+		pacSrc = js.Bytes()
 	case io.Reader:
 		var buf bytes.Buffer
 		io.Copy(&buf, js)
-		p.pacSrc = buf.Bytes()
+		pacSrc = buf.Bytes()
 	default:
 		return errors.New("invalid source")
 	}
-	if _, err := p.runtime.vm.Run(p.pacSrc); err != nil {
+	if _, err := runtime.vm.Run(pacSrc); err != nil {
 		return err
 	}
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.pacURI = uri
+	p.pacSrc = pacSrc
+	p.runtime = runtime
+	p.ConnService.Clear()
 	return nil
 }
 

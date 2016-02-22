@@ -59,14 +59,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	locator := NewCompositePacLocator()
 	if fPac != "" {
-		err = pac.LoadFile(fPac)
-		if err != nil {
-			log.Fatal(err)
-		}
+		locator = NewCompositePacLocator(
+			NewFilePacLocator(fPac),
+		)
 	}
 
-	initSignalNotify(pac)
+	ch := locator.Locate()
+	go func() {
+		for {
+			_ = <-ch
+			locator.LoadInto(pac)
+		}
+	}()
+
+	initSignalNotify(pac, locator)
 
 	log.Printf("Listening on %q", fListen)
 	log.Fatal(

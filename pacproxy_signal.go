@@ -3,31 +3,21 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func initSignalNotify(pac *Pac) {
+func initSignalNotify(pac *Pac, locator PacLocator) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGHUP)
 	go func() {
 		for s := range sigChan {
 			switch s {
 			case syscall.SIGHUP:
-				f := pac.PacURI()
-				if f == "" {
-					log.Println("Cleaning connection statuses however the current PAC configuration was not loaded from a file.")
-					pac.ConnService.Clear()
-					return
-				}
-				log.Printf("Cleaning connection statuses and reloading PAC configuration from %q.\n", f)
-				if e := pac.LoadFile(f); e != nil {
-					log.Println(e)
-				}
+				locator.Reload()
+				pac.ConnService.Clear()
 			}
 		}
 	}()
-
 }
