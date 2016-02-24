@@ -60,14 +60,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	locator := NewCompositePacLocator()
-	if fPac != "" {
-		locator = NewCompositePacLocator(
-			NewFilePacLocator(fPac),
-		)
-	}
+	/*
+		locator := NewCompositePacLocator()
+		if fPac != "" {
+			locator = NewCompositePacLocator(
+				NewFilePacLocator(fPac),
+			)
+		}
+	*/
 
-	ch := locator.Locate()
+	locator := NewFilePacLocator(fPac)
+
+	ch := make(chan bool)
+	locator.StartLocating(ch)
 	go func() {
 		for {
 			_ = <-ch
