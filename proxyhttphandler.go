@@ -77,6 +77,10 @@ func (h *ProxyHTTPHandler) doConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+	defer clientConn.Close()
+	if r.URL.Scheme == "" {
+		r.URL.Scheme = "https"
+	}
 	removeProxyHeaders(r)
 	pacConn, err := h.pac.PacConn(r.URL)
 	if err != nil {
@@ -100,8 +104,6 @@ func (h *ProxyHTTPHandler) doConnect(w http.ResponseWriter, r *http.Request) {
 		defer serverConn.Close()
 		clientConn.Write([]byte("HTTP/1.0 200 OK\r\n\r\n"))
 	}
-	defer clientConn.Close()
-	defer serverConn.Close()
 	go io.Copy(clientConn, serverConn)
 	io.Copy(serverConn, clientConn)
 }

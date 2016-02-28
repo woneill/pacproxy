@@ -81,7 +81,7 @@ func (p *Pac) LoadFrom(js interface{}, uri string, from string) error {
 		log.Print("PAC runtime successfully initialised")
 		log.Print("Old PAC runtime has been replaced")
 	} else {
-		log.Print("PAC runtime initialisation failed. Reason: %s", err)
+		log.Printf("PAC runtime initialisation failed. Reason: %s", err)
 		log.Print("Existing PAC runtime has not been replaced")
 	}
 	return err
@@ -234,6 +234,12 @@ func (p *Pac) PacConn(in *url.URL) (*PacConn, error) {
 	hostStr := p.HostFromURL(in)
 	s, err := p.CallFindProxyForURL(urlStr, hostStr)
 	if err != nil {
+		log.Printf(
+			"Failed to invoke FindProxyForURL(%q, %q). Reason: %s",
+			urlStr,
+			hostStr,
+			err.Error(),
+		)
 		return nil, err
 	}
 	errMsg := bytes.NewBufferString(
@@ -244,28 +250,41 @@ func (p *Pac) PacConn(in *url.URL) (*PacConn, error) {
 			s,
 		),
 	)
+	okMsg := bytes.NewBufferString(
+		fmt.Sprintf(
+			"Successfully processed FindProxyForURL(%q, %q) result %q.",
+			urlStr,
+			hostStr,
+			s,
+		),
+	)
 	for _, statement := range pacStatementSplit.Split(s, pacMaxStatements) {
 		part := pacItemSplit.Split(statement, 2)
 		switch strings.ToUpper(part[0]) {
 		case "DIRECT":
+			okMsg.Write([]byte(" Going DIRECT."))
+			log.Print(okMsg.String())
 			return nil, nil
 		case "PROXY":
 			pacConn := p.ConnService.Conn(part[1])
 			if pacConn.IsActive() {
+				fmt.Fprintf(okMsg, " Using PROXY %q.", part[1])
+				log.Print(okMsg.String())
 				return pacConn, nil
 			}
-			errMsg.Write([]byte("\n"))
+			okMsg.Write([]byte(" "))
+			okMsg.WriteString(pacConn.Error().Error())
+			okMsg.Write([]byte("."))
+			errMsg.Write([]byte(" "))
 			errMsg.WriteString(pacConn.Error().Error())
 			errMsg.Write([]byte("."))
 		default:
-			errMsg.Write([]byte("\n"))
-			errMsg.WriteString(
-				fmt.Sprintf("Unsupported PAC command %q.", part[0]),
-			)
-			return nil, errors.New(errMsg.String())
+			fmt.Fprintf(errMsg, " Unsupported PAC command %q.", part[0])
 		}
 	}
-	return nil, errors.New(errMsg.String())
+	errStr := errMsg.String()
+	log.Print(errStr)
+	return nil, errors.New(errStr)
 }
 
 // Proxy returns the URL of the proxy that the client should use.
