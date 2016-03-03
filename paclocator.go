@@ -10,16 +10,41 @@ import (
 	"time"
 )
 
+// PacLocatorCollection is a basic structure for keeping a collection of PacLocators
+type PacLocatorCollection struct {
+	Locators map[UUID]PacLocator
+}
+
+// NewPacLocatorCollection from one or more PacLocators
+func NewPacLocatorCollection(l ...PacLocator) *PacLocatorCollection {
+	c := &PacLocatorCollection{
+		Locators: make(map[UUID]PacLocator),
+	}
+	c.Add(l...)
+	return c
+}
+
+// Add locators to the collection
+func (c *PacLocatorCollection) Add(l ...PacLocator) {
+	for _, locator := range l {
+		c.Locators[locator.UUID()] = locator
+	}
+}
+
 // PacLocator provides an interface for being able to locate a pac file
 type PacLocator interface {
+	// UUID for the pac locator instance
+	UUID() UUID
+	// Description provides a string itendifier to describe the PacLocator
+	Description() string
 	// StartLocating the pac file and send on the chan when located and/or updated.
-	// Any sending on the chan MUST be non-blocking. Send true if located, false if
-	// locating failed.
+	// Any sending on the chan MUST be non-blocking.
+	//
 	// Once located impleentations MUST load the contents of the pac into memory so
 	// that it's available even if the source later becomes unreachable.
 	// Implementations should continue to look/poll for updates to the pac files
 	// until StopLocating is called.
-	StartLocating(ch chan<- bool)
+	StartLocating(ch chan<- PacLocator)
 	// StopLocating the pac file. Any data for already located pac files should be
 	// retained.
 	StopLocating()
@@ -32,72 +57,20 @@ type PacLocator interface {
 	IsLocatedPacFileUpStillAvailable() bool
 	// PacFileWasLastLocatedAt returns the time for the last located pac file.
 	PacFileWasLastLocatedAt() time.Time
-	// LoadInto a pac instance the last located pac configuration
-	LoadInto(pac *Pac) error
+	// PacURI returns the URI for the pac data. Can return an empty string if a URI
+	// is not applicable.
+	PacURI() string
+	// PacData returns the last located pac data
+	PacData() ([]byte, error)
 	// Reload a locator and force a location refresh
 	Reload()
 }
-
-// NewCompositePacLocator for a collection of locators
-func NewCompositePacLocator(locator ...PacLocator) *CompositePacLocator {
-	return &CompositePacLocator{
-		mutex:   &sync.RWMutex{},
-		locator: locator,
-	}
-}
-
-// CompositePacLocator supports locating from a number of locators
-type CompositePacLocator struct {
-	mutex      *sync.RWMutex
-	locator    []PacLocator
-	lastLocate PacLocator
-}
-
-/*
-// Locate the pac file and send on the chan when located and/or updated.
-func (l *CompositePacLocator) StartLocating(ch chan<- struct{}) {
-	ch := make(chan struct{})
-	for _, locator := range l.locator {
-		go func(locator PacLocator) {
-			lch := locator.StartLocating(ch)
-			for {
-				select {
-				case <-lch:
-					l.mutex.Lock()
-					l.lastLocate = locator
-					l.mutex.Unlock()
-					ch <- struct{}{}
-				}
-			}
-		}(locator)
-	}
-	return ch
-}
-
-// LoadInto a pac instance the last located pac configuration
-func (l *CompositePacLocator) LoadInto(pac *Pac) error {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-	if l.lastLocate == nil {
-		return fmt.Errorf("Pac data has not yet been located")
-	}
-	return l.lastLocate.LoadInto(pac)
-}
-
-// Reload a locator and force a location refresh
-func (l *CompositePacLocator) Reload() {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-	for _, locator := range l.locator {
-		locator.Reload()
-	}
-}
-*/
 
 // NewFilePacLocator for watching the local file system
 func NewFilePacLocator(file string) *FilePacLocator {
 	return &FilePacLocator{
 		mutex:      &sync.RWMutex{},
+		uuid:       NewUUID(),
 		file:       file,
 		delay:      time.Second * 10,
 		reloadChan: make(chan struct{}),
@@ -107,6 +80,7 @@ func NewFilePacLocator(file string) *FilePacLocator {
 // FilePacLocator proviced a locator for a local file
 type FilePacLocator struct {
 	mutex            *sync.RWMutex
+	uuid             UUID
 	file             string
 	data             []byte
 	delay            time.Duration
@@ -131,9 +105,19 @@ func (l *FilePacLocator) resetForReload() {
 	l.mutex.Unlock()
 }
 
+// UUID for the pac locator instance
+func (l *FilePacLocator) UUID() UUID {
+	return l.uuid
+}
+
+// Description provides a string itendifier to describe the PacLocator
+func (l *FilePacLocator) Description() string {
+	return fmt.Sprintf("File Locator file://%s", l.file)
+}
+
 // StartLocating the pac file and send on the chan when located and/or updated.
 // Any sending on the chan MUST be non-blocking.
-func (l *FilePacLocator) StartLocating(ch chan<- bool) {
+func (l *FilePacLocator) StartLocating(ch chan<- PacLocator) {
 	l.StopLocating()
 	go func() {
 		sendToChan := false
@@ -176,19 +160,19 @@ func (l *FilePacLocator) StartLocating(ch chan<- bool) {
 			lastFileInfo = fInfo
 			lastFileInfoErr = err
 			// Non-Blocking select
-			l.mutex.RLock()
 			if sendToChan {
 				select {
-				case ch <- l.isStillAvailable:
+				case ch <- l:
 				default:
 				}
 			}
-			l.mutex.RUnlock()
 			// Blocking select
 			select {
 			case <-timer.C:
 			case <-l.reloadChan:
 				timer = nil
+				lastFileInfo = nil
+				lastFileInfoErr = nil
 				l.resetForReload()
 			case <-l.stopChan:
 				timer = nil
@@ -232,16 +216,21 @@ func (l *FilePacLocator) PacFileWasLastLocatedAt() time.Time {
 	return l.lastLocatedAt
 }
 
-// LoadInto a pac instance the last located pac configuration
-func (l *FilePacLocator) LoadInto(pac *Pac) error {
+// PacURI returns the URI for the pac data.
+func (l *FilePacLocator) PacURI() string {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	return l.file
+}
+
+// PacData returns the last located pac data
+func (l *FilePacLocator) PacData() ([]byte, error) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	if !l.HasLocatedPacFile() {
-		msg := fmt.Sprintf("Unable to load file://%s as no data has yet been located", l.file)
-		log.Println(msg)
-		return errors.New(msg)
+		return nil, errors.New("No pac data has yet been located")
 	}
-	return pac.LoadFrom(l.data, fmt.Sprintf("file://%s", l.file), l.file)
+	return l.data, nil
 }
 
 // Reload a locator and force a location refresh

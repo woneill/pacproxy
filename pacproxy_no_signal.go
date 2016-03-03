@@ -2,5 +2,5 @@
 
 package main
 
-func initSignalNotify(_ *Pac, _ PacLocator) {
+func initSignalNotify(_ *Pac, _ *PacLocatorCollection) {
 }

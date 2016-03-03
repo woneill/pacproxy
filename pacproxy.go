@@ -60,33 +60,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	/*
-		locator := NewCompositePacLocator()
-		if fPac != "" {
-			locator = NewCompositePacLocator(
-				NewFilePacLocator(fPac),
-			)
+	pacLoader := NewPacLoader(pac, NewPacLocatorCollection())
+	var defaultLocator PacLocator
+
+	if fPac != "" {
+		defaultLocator = NewFilePacLocator(fPac)
+		pacLoader.LocatorCollection.Add(defaultLocator)
+	}
+
+	if defaultLocator != nil {
+		err = pacLoader.Load(defaultLocator.UUID())
+		if err != nil {
+			log.Print(err)
 		}
-	*/
+	}
+	pacLoader.StartLocating()
 
-	locator := NewFilePacLocator(fPac)
-
-	ch := make(chan bool)
-	locator.StartLocating(ch)
-	go func() {
-		for {
-			_ = <-ch
-			locator.LoadInto(pac)
-		}
-	}()
-
-	initSignalNotify(pac, locator)
+	initSignalNotify(pac, pacLoader.LocatorCollection)
 
 	log.Printf("Listening on %q", fListen)
 	log.Fatal(
 		http.ListenAndServe(
 			fListen,
-			NewProxyHTTPHandler(pac, NewNonProxyHTTPHandler(pac)),
+			NewProxyHTTPHandler(pac, NewNonProxyHTTPHandler(pac, pacLoader)),
 		),
 	)
 }

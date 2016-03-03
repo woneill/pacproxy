@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-func NewNonProxyHTTPHandler(pac *Pac) http.Handler {
+func NewNonProxyHTTPHandler(pac *Pac, pacLoader *PacLoader) http.Handler {
 	router := httprouter.New()
 	router.RedirectFixedPath = false
 	router.RedirectTrailingSlash = false
